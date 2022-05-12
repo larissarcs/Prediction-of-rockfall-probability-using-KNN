@@ -1,0 +1,356 @@
+### Predição da probabilidade de quedas de blocos em taludes rochosos através do KNN###
+### Rockfall prediction in rock slopes through KNN####
+
+## Data (Reading your database. My database is called "Suscet13")
+dados=read.table("Suscet13.txt", header=TRUE)
+dados=as.data.frame(cbind(dados))
+head(dados)
+
+# Resumo (minimo, maximo, mediana, quartis)
+#Summary
+
+summary(dados)
+
+
+# Estrutura das variaveis (variables type)
+str(dados)
+
+
+set.seed(432100)
+
+# Separa em treino e teste
+## Gera indices da base treino e teste
+###Training and test samples####
+train_index = sample(1:nrow(dados), 0.70*nrow(dados), replace = FALSE)
+
+
+treino = data.frame()
+treino = dados[train_index,]
+treino
+
+teste = data.frame()
+teste = dados[-train_index,]
+teste
+
+# Carrega biblioteca para rodar KNN
+##Loanding package class to run KNN function
+library("class")
+
+# Roda com k=3 teste
+#Run using k = 3 an test the test sample
+Knn_K3= knn(treino[,-9], teste[,-9],
+            treino$Status, k=3, prob=TRUE)
+
+# Roda com k=3 treino
+#Run using k = 3 and test the training sample
+Knn_K3treino= knn(treino[,-9], treino[,-9],
+            treino$Status, k=3, prob=TRUE)
+
+
+##Acurácia 3
+##Accuracy Test
+table(teste$Status, Knn_K3)
+
+sum(Knn_K3==teste$Status)/length(teste$Status)*100
+
+##Accuracy train
+table(treino$Status, Knn_K3treino)
+
+sum(Knn_K3treino==treino$Status)/length(treino$Status)*100
+
+
+
+# Método para comparar diferentes k's
+# Comparing several k values
+
+# cria uma lista para receber as predicoes
+# list to receive the predictions
+Knn_Teste = list()
+Knn_treino = list()
+
+# cria variavel para receber erros
+# variable to receive the errors 
+erro = numeric()
+AUC1 = numeric()
+erro2 = numeric()
+AUC2 = numeric()
+
+# cria loop para testar de k=1 ate k=20
+# loop to run KNN with k = 1 to k = 20
+
+for(k in 1:20){
+
+  set.seed(432100)
+  
+  # Separa em treino e teste
+  ## Gera indices da base treino e teste
+  ##Train and test samples
+  train_index = sample(1:nrow(dados), 0.70*nrow(dados), replace = FALSE)
+  
+
+  treino = data.frame()
+  treino = dados[train_index,]
+  treino
+  
+  teste = data.frame()
+  teste = dados[-train_index,]
+  teste
+ 
+  library("class")
+  
+
+  Knn_Teste[[k]]= knn(treino[,-9], teste[,-9],
+                     treino$Status, k)
+  Knn_Teste[[k]]
+  
+  resultado = Knn_Teste[[k]]
+  resultado
+ 
+  ##error in test samlple
+  library(ks)
+  tab = compare(teste$Status,resultado)
+  tab
+  
+  erro[k] = tab$error
+  
+  erro[k]
+  
+ ###AUC in test sample
+  
+  library(multiROC)
+  library(pROC)
+  
+  ROC_AUC <- multiclass.roc(as.numeric(as.factor(teste$Status)), as.numeric(as.factor(resultado)), direction = "<")
+  AUC1[k] <- ROC_AUC$auc
+  AUC1[k]
+  
+  ##roda para verificar o treino##
+  ##Run to test the train sample##
+  
+   
+  Knn_treino[[k]]= knn(treino[,-9], treino[,-9],
+                    treino$Status, k)
+  Knn_treino[[k]]
+  
+  
+  resultado2 = Knn_treino[[k]]
+  resultado2
+  
+  library(ks)
+  tab2 = compare(treino$Status,resultado2)
+  tab2
+  
+  erro2[k] = tab2$error
+  
+  erro2[k]
+  
+  
+  library(multiROC)
+  library(pROC)
+  
+  
+  ROC_AUC2 <- multiclass.roc(as.numeric(as.factor(treino$Status)), as.numeric(as.factor(resultado2)), direction = "<")
+  AUC2[k] <- ROC_AUC2$auc
+  AUC2[k]
+}
+
+# Comparacao grafica dos erros em teste
+# Graphical comparison in errors: test sample
+plot(erro, xlim=c(1,20),ylim=c(0.1,0.35), type="b", col="blue", cex=1, pch=1,
+     xlab="k", ylab="Erro",
+     main="Erro para cada k")
+
+# Linha vertical vermelha marcando o minimo
+abline(v=which(erro==min(erro)), col="red", lwd=1.5)
+
+# Linha horizontal cinza marcando o minimo
+abline(h=min(erro), col="grey", lty=2)
+
+# Linha horizontal cinza para marcar o maximo
+abline(h=max(erro), col="grey", lty=2)
+
+
+# Comparacao grafica dos erros treino
+# Graphical comparison in errors: train sample
+plot(erro2, xlim=c(1,20),ylim=c(0,0.30), type="b", col="blue", cex=1, pch=1,
+     xlab="k", ylab="Erro",
+     main="Erro para cada k")
+
+# Linha vertical vermelha marcando o minimo
+abline(v=which(erro2==min(erro2)), col="red", lwd=1.5)
+
+# Linha horizontal cinza marcando o minimo
+abline(h=min(erro2), col="grey", lty=2)
+
+# Linha horizontal cinza para marcar o maximo
+abline(h=max(erro2), col="grey", lty=2)
+
+
+###plotando erros de treino e de teste juntas
+###ploting erros in test and train samples
+op <- par(mar = c(5, 3, 4, 1))
+plot(erro, xlim=c(1,20),ylim=c(0,0.35),type="b", col="blue", cex=1, pch=1,
+     xlab="k", ylab="Erro",
+     main="Erro para cada k")
+
+op <- par(new = TRUE)
+plot(erro2, xlim=c(1,20),ylim=c(0,0.35), type="b", col="red", cex=1, pch=1,
+     xlab="k", ylab="Erro",
+     main="Erro para cada k")
+
+
+####mostrando erros da amostra de teste
+###errors in test sample
+erros=erro[1:20]
+erros
+
+#erro médio
+#mean
+erro_medio = mean(erros)
+
+erro_medio
+
+#exportando para .txt
+#exporting to .txt
+erros_export <- data.frame(erros)
+erros_export
+erros_export = write.table(erros_export, file = "Erros_teste.txt")
+getwd()
+
+### erros da amostra treino
+###errors in train sample
+erros2=erro2[1:20]
+erros2
+
+##mean (médio)
+erro_medio2 = mean(erros2)
+erro_medio2
+
+##exporting to .txt
+erros2_export <- data.frame(erros2)
+erros2_export
+erros2_export = write.table(erros2_export, file = "Erros_treino.txt")
+getwd()
+
+
+##AUC to test sample
+AUC1=AUC1[1:20]
+
+### mean AUC
+AUC1
+AUC1_media = mean(AUC1)
+AUC1_media
+
+###exporting
+AUC1_export <- data.frame(AUC1)
+AUC1_export
+AUC1_export = write.table(AUC1_export, file = "AUC_teste.txt")
+getwd()
+
+
+###AUC to train sample
+AUC2=AUC22[1:20]
+AUC2
+AUC2_media = mean(AUC2)
+AUC2_media
+
+
+#exporting
+AUC2_export <- data.frame(AUC2)
+AUC2_export
+AUC2_export = write.table(AUC2_export, file = "AUC_treino.txt")
+getwd()
+
+
+
+################Roda KNN com k= k otimo 
+################Run the KNN using the best k value
+## Data
+dados=read.table("Suscet13.txt", header=TRUE)
+dados=as.data.frame(cbind(dados))
+head(dados)
+set.seed(432100)
+
+# Separa em treino e teste
+## Gera indices da base treino e teste
+##Train and test samples
+train_index = sample(1:nrow(dados), 0.70*nrow(dados), replace = FALSE)
+
+
+treino = data.frame()
+treino = dados[train_index,]
+treino
+
+teste = data.frame()
+teste = dados[-train_index,]
+teste
+
+Knn_Kotimo= knn(treino[,-9], teste[,-9],
+                treino$Status, k=7, prob=TRUE)
+Knn_Kotimo
+
+###Verificando classificações do KNN, probabilidades e exportando os dados para arquivo .txt
+###Checking KNN classifications, probabilities and exporting the results to .txt file
+probabilidades = as.data.frame(attr(Knn_Kotimo,"prob"))
+probabilidades
+
+classificacoes = as.data.frame(as.factor(Knn_Kotimo))
+classificacoes
+
+Yteste = as.data.frame(teste[,9])
+Yteste
+
+classe_prob = cbind(classificacoes,Yteste,probabilidades)
+classe_prob
+
+classe_prob = write.table(classe_prob, file = "probabilidades e classes.txt")
+getwd()
+
+write.table(teste,  file = "amostras de teste.txt")
+getwd()
+
+# Analisa a matriz de confusao 
+#confusion matrix
+
+table(teste$Status, Knn_Kotimo)
+
+# Analisa acuracia
+#Accuracy
+
+sum(Knn_Kotimo==teste$Status)/length(teste$Status)*100
+
+##############talude que queremos definir a probabilidade de queda
+##############new slope to define the rockfall probability
+
+###### coloque as notas atribuídas em campo (1 a 4) nos parênteses
+###### put the assigned scores in the field (1 to 4) in parentheses
+talude_exemplo = c(3, 1, 4, 4, 3, 2, 3, 4)
+
+##normalizando entre 0 e 1
+##normalizing between o and 1
+talude_exemplo_norm = c(0.67, 0, 1, 1 , 0.67, 0.33, 0.67, 1)
+
+
+# copia o cabecalho da base teste
+# copy the header of the test sample
+base_exemplo = teste[0:1, -9]
+base_exemplo
+
+# une cabecalho com o talude
+# joint the new slope
+base_exemplo = rbind(base_exemplo, talude_exemplo_norm)
+base_exemplo
+
+# exclui primeira linha
+#delete the header
+base_exemplo = base_exemplo[2,]
+base_exemplo
+
+###Roda o KNN apenas para o novo talude
+### Run the knn an test only in the new slope
+Knn_Predicao = knn(treino[,-9], base_exemplo,
+                      treino$Status, k=7, prob=TRUE)
+
+Knn_Predicao
+
+summary(Knn_Predicao)
